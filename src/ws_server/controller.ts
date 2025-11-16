@@ -2,7 +2,7 @@ import WebSocket from "ws";
 import { playerHandler } from "./handlers/playerHandler";
 import { createRoom, addUserToRoom } from "./handlers/roomHandler";
 import { getPlayerNameByWs } from "./handlers/common/utils";
-import { handleAddShips, handleAttack } from "./handlers/gameHandler";
+import { handleAddShips, handleAttack, handleRandomAttack } from "./handlers/gameHandler";
 
 export const startControl = (ws: WebSocket): void => {
   console.log("Ws connected:", !ws.isPaused);
@@ -13,7 +13,7 @@ export const startControl = (ws: WebSocket): void => {
       const rawData: string = parsedCommand.data ?? "";
       const id: number = parsedCommand.id ?? 0;
 
-      console.log({ type, data: rawData, id });
+      console.log({ type, data: rawData, id }, {timeStamp: Date.now()});
       const playerName = getPlayerNameByWs(ws);
       switch (type) {
         case "reg":
@@ -60,6 +60,11 @@ export const startControl = (ws: WebSocket): void => {
 
         case "attack": {
           handleAttack(ws, rawData);
+          break;
+        }
+
+        case "randomAttack": {
+          handleRandomAttack(ws, rawData);
           break;
         }
 

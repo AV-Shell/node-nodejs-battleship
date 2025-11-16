@@ -5,10 +5,12 @@ import {
   broadcastAttack,
   broadcastFinish,
   broadcastStart,
+  getRandomInt,
   getShipCells,
   sendTurn,
   updateWinnersBroadcast,
 } from "./common/utils";
+import { FIELDSIZE } from "./common/constants";
 
 export function handleAddShips(ws: WebSocket, rawData: string) {
   try {
@@ -275,5 +277,149 @@ export function handleAttack(ws: WebSocket, rawData: string) {
     }
   } catch (err) {
     console.error("handleAttack error:", err);
+  }
+}
+
+export function handleRandomAttack(ws: WebSocket, rawData: string) {
+  try {
+    const data: IAttackData = JSON.parse(rawData);
+    const { gameId, indexPlayer } = data;
+    const game = games.get(gameId);
+    if (!game) {
+      console.error(`Game ${gameId} not found`);
+      return;
+    }
+
+    const shooter = players.get(indexPlayer);
+    if (!shooter || shooter.ws !== ws) {
+      console.error(`Player ${indexPlayer} not found or WS mismatch`);
+      return;
+    }
+
+    if (game.turn !== indexPlayer) {
+      console.error(
+        `Player ${indexPlayer} tries to shoot when it's not his turn.`
+      );
+      return;
+    }
+
+    const opponentName = Object.keys(game.players).find(
+      name => name !== indexPlayer
+    );
+    if (!opponentName) {
+      return;
+    }
+
+    const opponentShips: IShip[] | undefined = game.ships[opponentName];
+
+    if (!opponentShips) {
+      return;
+    }
+    const board = game.boardState[indexPlayer];
+    const nextPosition: IPosition = { x: 0, y: 0 };
+    let findGoodPosition = false;
+    external: for (let posY = 0; posY < FIELDSIZE; posY++) {
+      for (let posX = 0; posX < FIELDSIZE; posX++) {
+        if (board?.[posY]?.[posX] && board?.[posY]?.[posX] === "shot") {
+          let attempt = posX - 1;
+          while (
+            board?.[posY]?.[attempt] !== undefined &&
+            board?.[posY]?.[attempt] !== "miss"
+          ) {
+            if (board?.[posY]?.[attempt] === "untouched") {
+              findGoodPosition = true;
+              nextPosition.x = attempt;
+              nextPosition.y = posY;
+              break external;
+            }
+            attempt -= 1;
+          }
+
+          attempt = posX + 1;
+          while (
+            board?.[posY]?.[attempt] !== undefined &&
+            board?.[posY]?.[attempt] !== "miss"
+          ) {
+            if (board?.[posY]?.[attempt] === "untouched") {
+              findGoodPosition = true;
+              nextPosition.x = attempt;
+              nextPosition.y = posY;
+              break external;
+            }
+            attempt += 1;
+          }
+
+          attempt = posY - 1;
+          while (
+            board?.[attempt]?.[posX] !== undefined &&
+            board?.[attempt]?.[posX] !== "miss"
+          ) {
+            if (board?.[attempt]?.[posX] === "untouched") {
+              findGoodPosition = true;
+              nextPosition.x = posX;
+              nextPosition.y = attempt;
+              break external;
+            }
+            attempt -= 1;
+          }
+          attempt = posY + 1;
+          while (
+            board?.[attempt]?.[posX] !== undefined &&
+            board?.[attempt]?.[posX] !== "miss"
+          ) {
+            if (board?.[attempt]?.[posX] === "untouched") {
+              findGoodPosition = true;
+              nextPosition.x = posX;
+              nextPosition.y = attempt;
+              break external;
+            }
+            attempt += 1;
+          }
+
+          console.log(
+            `Board `,
+            board,
+            `at positions x:${posX}, y:${posY} has "shot" but no "untouched" nearby`
+          );
+          break external;
+        }
+      }
+    }
+
+    if (!findGoodPosition) {
+      const freePositions: Array<IPosition> = [];
+
+      for (let posY = 0; posY < FIELDSIZE; posY++) {
+        for (let posX = 0; posX < FIELDSIZE; posX++) {
+          if (board?.[posY]?.[posX] === "untouched") {
+            freePositions.push({ x: posX, y: posY });
+          }
+        }
+      }
+      if (freePositions.length) {
+        const p = freePositions[getRandomInt(freePositions.length)];
+        if (p) {
+          findGoodPosition = true;
+          nextPosition.x = p.x;
+          nextPosition.y = p.y;
+        }
+      }
+    }
+    if (!findGoodPosition) {
+      console.log(`findGoodPosition`, findGoodPosition);
+      console.log(`Board \n`, board, ` \n has no "untouched"  fields`);
+      return;
+    }
+    handleAttack(
+      ws,
+      JSON.stringify({
+        gameId,
+        x: nextPosition.x,
+        y: nextPosition.y,
+        indexPlayer,
+      })
+    );
+  } catch (err) {
+    console.error("handleRandomAttack error:", err);
   }
 }
