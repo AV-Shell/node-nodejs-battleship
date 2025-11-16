@@ -611,3 +611,35 @@ export function handleWin(
     }
   }
 }
+
+export function getPlayerByWS(ws: WebSocket): IPlayer | undefined {
+  return Array.from(players.values()).find((pl: IPlayer) => {
+    return pl.ws == ws;
+  });
+}
+
+export function finishSocketConnectionsAfterDisconnect(ws: WebSocket) {
+  console.log(ws ? "ws" : 1);
+  const player = getPlayerByWS(ws);
+  if (!player) {
+    return;
+  }
+  player.ws = undefined;
+  for (const [gameId, game] of games) {
+    const gamePlayers = Object.entries(game.players);
+    if (gamePlayers.some(([name]) => name === player.name)) {
+      const [gamePlayer1, gamePlayer2] = gamePlayers;
+      const winnerPlayer =
+        gamePlayer1?.[0] === player.name ? gamePlayer2?.[1] : gamePlayer1?.[1];
+      if (winnerPlayer) {
+        winnerPlayer.wins = winnerPlayer.wins + 1;
+        broadcastFinish(game, winnerPlayer.name);
+      }
+      games.delete(gameId);
+
+      updateWinnersBroadcast();
+    }
+  }
+  removeUserRooms(player.name);
+  updateRoomBroadcast();
+}

@@ -2,14 +2,9 @@ import { WebSocket } from "ws";
 import { IPlayer, IGame } from "../types";
 import { games, players } from "./common/store";
 import { randomUUID } from "node:crypto";
-import { emptyBoard, fillAiBoard, removeUserRooms } from "./common/utils";
+import { emptyBoard, fillAiBoard, getPlayerByWS, removeUserRooms } from "./common/utils";
 import { AI_NAME } from "./common/constants";
 
-const getPlayer = (ws: WebSocket): IPlayer | undefined => {
-  return Array.from(players.values()).find((pl: IPlayer) => {
-    return pl.ws == ws;
-  });
-};
 
 const getAiPlayer = (): IPlayer | undefined => {
   return Array.from(players.values()).find((pl: IPlayer) => {
@@ -19,7 +14,7 @@ const getAiPlayer = (): IPlayer | undefined => {
 
 export function handleSinglePlay(ws: WebSocket) {
   try {
-    const player = getPlayer(ws);
+    const player = getPlayerByWS(ws);
     const aiPlayer = getAiPlayer();
     console.log({ aiPlayer });
 

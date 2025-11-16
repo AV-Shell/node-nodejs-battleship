@@ -1,7 +1,10 @@
 import WebSocket from "ws";
 import { playerHandler } from "./handlers/playerHandler";
 import { createRoom, addUserToRoom } from "./handlers/roomHandler";
-import { getPlayerNameByWs } from "./handlers/common/utils";
+import {
+  finishSocketConnectionsAfterDisconnect,
+  getPlayerNameByWs,
+} from "./handlers/common/utils";
 import {
   handleAddShips,
   handleAttack,
@@ -88,6 +91,7 @@ export const startControl = (ws: WebSocket): void => {
 
   ws.on("close", () => {
     console.log("Client disconnected");
-    // TODO: удалить игрока из rooms/games, обнулить сокет завершить текущую игру победой второго игрока
+
+    finishSocketConnectionsAfterDisconnect(ws);
   });
 };
