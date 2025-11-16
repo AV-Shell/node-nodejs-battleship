@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { IRoom } from "../types";
-import { updateRoomBroadcast, createGame } from "./common/utils";
+import {
+  updateRoomBroadcast,
+  createGame,
+  removeUserRooms,
+} from "./common/utils";
 import { rooms, players } from "./common/store";
 
 export function createRoom(playerName: string) {
@@ -45,25 +49,27 @@ export function addUserToRoom(playerName: string, roomId: string) {
     return;
   }
 
-
-  for (const [id, r] of rooms) {
-    const index = r.users.findIndex(u => u.name === playerName);
-    if (index !== -1) {
-      r.users.splice(index, 1);
-      console.log(`Player ${playerName} removed from room ${id}`);
-      if (r.users.length === 0) {
-        rooms.delete(id);
-        console.log(`Room ${id} deleted because it's empty`);
-      }
-    }
-  }
+  // for (const [id, r] of rooms) {
+  //   const index = r.users.findIndex(u => u.name === playerName);
+  //   if (index !== -1) {
+  //     r.users.splice(index, 1);
+  //     console.log(`Player ${playerName} removed from room ${id}`);
+  //     if (r.users.length === 0) {
+  //       rooms.delete(id);
+  //       console.log(`Room ${id} deleted because it's empty`);
+  //     }
+  //   }
+  // }
+  removeUserRooms(playerName);
 
   room.users.push({ name: playerName, index: playerName });
 
   const isRoomFull = room.users.length === 2;
 
   if (isRoomFull) {
-    console.log(`Room ${roomId} deleted because it became full and game started`);
+    console.log(
+      `Room ${roomId} deleted because it became full and game started`
+    );
     rooms.delete(roomId);
   }
 

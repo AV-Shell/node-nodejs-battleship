@@ -1,16 +1,15 @@
 import { WebSocket } from "ws";
-import { IAddShipsData, IPosition, IShip, ResponseCellState } from "../types";
+import { IAddShipsData, IPosition, IShip } from "../types";
 import { games, players } from "./common/store";
 import {
-  broadcastAttack,
-  broadcastFinish,
   broadcastStart,
+  getAttackResult,
   getRandomInt,
-  getShipCells,
+  handleWin,
   sendTurn,
-  updateWinnersBroadcast,
 } from "./common/utils";
 import { FIELDSIZE } from "./common/constants";
+import { handleAiGame } from "./aiHandler";
 
 export function handleAddShips(ws: WebSocket, rawData: string) {
   try {
@@ -52,6 +51,10 @@ export function handleAddShips(ws: WebSocket, rawData: string) {
       broadcastStart(game);
 
       sendTurn(game);
+
+      if (game.isAiGame) {
+        handleAiGame(game);
+      }
     } else {
       console.log(
         `Player ${playerName} submitted ships. Waiting for the other player.`
@@ -107,174 +110,25 @@ export function handleAttack(ws: WebSocket, rawData: string) {
     }
 
     const board = game.boardState[indexPlayer];
-
-    if (!board?.[y]?.[x]) {
-      console.log(
-        `Board ${y} ${x} is corrupted value: ${board?.[y]?.[x]} \n`,
-        board
-      );
+    if (!board) {
       return;
     }
 
-    if (board[y][x] !== "untouched") {
-      console.log(`Board ${y} ${x} has wrong value:${board[y][x]} \n`, board);
+    const attackResult = getAttackResult(
+      { x, y },
+      opponentShips,
+      board,
+      game,
+      indexPlayer
+    );
 
+    if (attackResult === undefined) {
       return;
     }
 
-    let status: "miss" | "shot" | "killed" = "miss";
+    const { win, status } = attackResult;
 
-    let hitShip: IShip | undefined;
-    let hitShipPositions: Array<IPosition> = [];
-    let killed = false;
-    let win = false;
-    for (const ship of opponentShips) {
-      const shipPositions = getShipCells(ship);
-      if (shipPositions.some(pos => pos.x === x && pos.y === y)) {
-        hitShip = ship;
-        hitShipPositions = shipPositions;
-        break;
-      }
-    }
-
-    let responsePositions: Array<{
-      position: IPosition;
-      status: ResponseCellState;
-    }> = [];
-
-    if (hitShip) {
-      board[y][x] = "shot";
-      status = "shot";
-
-      killed = hitShipPositions.every(({ x: posX, y: posY }) => {
-        return (
-          board?.[posY]?.[posX] === "shot" || board?.[posY]?.[posX] === "killed"
-        );
-      });
-
-      if (killed) {
-        hitShipPositions.forEach(({ x: posX, y: posY }) => {
-          if (!board?.[posY]?.[posX]) {
-            console.log(
-              `Board ${y} ${x} is corrupted value: ${board?.[posY]?.[posX]} \n`,
-              board
-            );
-            return;
-          }
-          board[posY][posX] = "killed";
-          responsePositions.push({
-            position: { x: posX, y: posY },
-            status: "killed",
-          });
-        });
-
-        const startShipY = hitShipPositions[0]?.y;
-        const endShipY = hitShipPositions[hitShipPositions.length - 1]?.y;
-        const startShipX = hitShipPositions[0]?.x;
-        const endShipX = hitShipPositions[hitShipPositions.length - 1]?.x;
-
-        if (
-          !(hitShipPositions.length > 0) ||
-          startShipY == undefined ||
-          endShipY == undefined ||
-          startShipX == undefined ||
-          endShipX == undefined
-        ) {
-          console.log(
-            `Ship ${hitShip} with positions ${hitShipPositions} is corrupted \n`,
-            board,
-            opponentShips
-          );
-          return;
-        }
-
-        for (let fieldY = startShipY - 1; fieldY <= endShipY + 1; fieldY++) {
-          for (let fieldX = startShipX - 1; fieldX <= endShipX + 1; fieldX++) {
-            if (!board && !board[fieldY] && !board[fieldY][fieldX]) {
-              //out of the board  fieldY < 0 || fieldY >= FIELDSIZE || fieldX < 0 || fieldX >= FIELDSIZE
-              continue;
-            }
-
-            /*  //fucking TS
-
-
-            // const exampleBoard = [
-            //   ["killed", "miss", "untouched", "untouched", "untouched"],
-            //   ["miss", "miss", "untouched", "shot", "untouched"],
-            //   ["miss", "untouched", "untouched", "shot", "untouched"],
-            //   ["untouched", "untouched", "untouched", "untouched", "untouched"],
-            //   ["untouched", "untouched", "untouched", "miss", "untouched"],
-            // ];
-            if (
-              board &&
-              board[fieldY] &&
-              board[fieldY][fieldX] &&
-              board[fieldY][fieldX] != "killed" &&
-              board[fieldY][fieldX] != "shot"
-            ) {
-              board[fieldY][fieldX] = "miss";
-              responsePositions.push({
-                position: { x: fieldX, y: fieldY },
-                status: killed ? "killed" : "shot",
-              });
-            }
-            */
-            const fuckingTS = board[fieldY];
-
-            if (
-              fuckingTS &&
-              fuckingTS[fieldX] &&
-              fuckingTS[fieldX] != "killed" &&
-              fuckingTS[fieldX] != "shot"
-            ) {
-              fuckingTS[fieldX] = "miss";
-
-              responsePositions.push({
-                position: { x: fieldX, y: fieldY },
-                status: "miss",
-              });
-            }
-          }
-        }
-
-        win = opponentShips.every(ship => {
-          const shipPositions = getShipCells(ship);
-          return shipPositions.every(({ x: posX, y: posY }) => {
-            return (
-              board?.[posY]?.[posX] === "shot" ||
-              board?.[posY]?.[posX] === "killed"
-            );
-          });
-        });
-      } else {
-        responsePositions.push({
-          position: { x, y },
-          status: "shot",
-        });
-      }
-    } else {
-      board[y][x] = "miss";
-      responsePositions.push({
-        position: { x, y },
-        status: "miss",
-      });
-    }
-
-    responsePositions.forEach(({ position, status }) => {
-      broadcastAttack(game, indexPlayer, position, status);
-    });
-    if (win) {
-      broadcastFinish(game, indexPlayer);
-      shooter.wins = shooter.wins + 1;
-      games.delete(gameId);
-
-      updateWinnersBroadcast();
-    } else {
-      if (status === "miss") {
-        game.turn = opponentName;
-      }
-      sendTurn(game);
-    }
+    handleWin(win, status, game, shooter, indexPlayer, opponentName);
   } catch (err) {
     console.error("handleAttack error:", err);
   }

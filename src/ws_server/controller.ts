@@ -2,7 +2,12 @@ import WebSocket from "ws";
 import { playerHandler } from "./handlers/playerHandler";
 import { createRoom, addUserToRoom } from "./handlers/roomHandler";
 import { getPlayerNameByWs } from "./handlers/common/utils";
-import { handleAddShips, handleAttack, handleRandomAttack } from "./handlers/gameHandler";
+import {
+  handleAddShips,
+  handleAttack,
+  handleRandomAttack,
+} from "./handlers/gameHandler";
+import { handleSinglePlay } from "./handlers/singlePlay";
 
 export const startControl = (ws: WebSocket): void => {
   console.log("Ws connected:", !ws.isPaused);
@@ -13,7 +18,7 @@ export const startControl = (ws: WebSocket): void => {
       const rawData: string = parsedCommand.data ?? "";
       const id: number = parsedCommand.id ?? 0;
 
-      console.log({ type, data: rawData, id }, {timeStamp: Date.now()});
+      console.log({ type, data: rawData, id }, { timeStamp: Date.now() });
       const playerName = getPlayerNameByWs(ws);
       switch (type) {
         case "reg":
@@ -65,6 +70,11 @@ export const startControl = (ws: WebSocket): void => {
 
         case "randomAttack": {
           handleRandomAttack(ws, rawData);
+          break;
+        }
+
+        case "single_play": {
+          handleSinglePlay(ws);
           break;
         }
 

@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { FIELDSIZE } from "../handlers/common/constants";
 
 export interface IPlayer {
   name: string;
@@ -22,11 +23,18 @@ export interface IPosition {
   y: number;
 }
 
+export type TShipType = "small" | "medium" | "large" | "huge";
 export interface IShip {
   position: IPosition;
   direction: boolean;
   length: number;
-  type: "small" | "medium" | "large" | "huge";
+  type: TShipType;
+}
+
+export interface IShipTypes {
+  type: TShipType;
+  length: number;
+  counts: number;
 }
 
 export interface IAddShipsData {
@@ -44,4 +52,24 @@ export interface IGame {
   ships: Record<string, IShip[]>;
   boardState: Record<string, Array<Array<CellState>>>;
   turn: string;
+  isAiGame: boolean;
 }
+
+export interface ISingleGame {
+  idGame: string;
+  player: IPlayer;
+  ships: Record<string, IShip[]>;
+  boardState: Record<string, Array<Array<CellState>>>;
+  turn: boolean;
+}
+
+export type TFixedArray<
+  T,
+  N extends number,
+  A extends T[] = []
+> = A["length"] extends N ? A : TFixedArray<T, N, [...A, T]>;
+
+export type TBoard = TFixedArray<
+  TFixedArray<CellState, typeof FIELDSIZE>,
+  typeof FIELDSIZE
+>;
