@@ -1,7 +1,15 @@
 import WebSocket from "ws";
 import { randomUUID } from "node:crypto";
-import { IGame, IPlayerInRoom } from "../../types";
+import {
+  CellState,
+  IGame,
+  IPlayerInRoom,
+  IPosition,
+  IShip,
+  ResponseCellState,
+} from "../../types";
 import { games, players, rooms } from "./store";
+import { FIELDSIZE } from "./constants";
 
 export function updateWinnersBroadcast() {
   const winnersData = Array.from(players.values()).map(player => ({
@@ -39,6 +47,11 @@ export function updateRoomBroadcast() {
   });
 }
 
+const emptyBoard: () => CellState[][] = () =>
+  Array.from({ length: FIELDSIZE }, () =>
+    Array.from({ length: FIELDSIZE }, () => "untouched")
+  );
+
 export function createGame(p1Room: IPlayerInRoom, p2Room: IPlayerInRoom): void {
   const player1Data = players.get(p1Room.name);
   const player2Data = players.get(p2Room.name);
@@ -62,12 +75,8 @@ export function createGame(p1Room: IPlayerInRoom, p2Room: IPlayerInRoom): void {
       [player2Data.name]: [],
     },
     boardState: {
-      [player1Data.name]: Array(10)
-        .fill(null)
-        .map(() => Array(10).fill(0)),
-      [player2Data.name]: Array(10)
-        .fill(null)
-        .map(() => Array(10).fill(0)),
+      [player1Data.name]: emptyBoard(),
+      [player2Data.name]: emptyBoard(),
     },
     turn: firstTurn,
   };
@@ -97,4 +106,93 @@ export function getPlayerNameByWs(ws: WebSocket): string | undefined {
     if (player.ws === ws) return name;
   }
   return undefined;
+}
+
+export function sendTurn(game: IGame) {
+  const message = {
+    type: "turn",
+    data: JSON.stringify({
+      currentPlayer: game.turn,
+    }),
+    id: 0,
+  };
+
+  Object.values(game.players).forEach(player => {
+    if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(JSON.stringify(message));
+    }
+  });
+
+  console.log(
+    `Turn sent for game ${game.idGame}. Current player: ${game.turn}`
+  );
+}
+
+export function getShipCells(ship: IShip): Array<IPosition> {
+  const { position, direction, length } = ship;
+
+  const cells: Array<IPosition> = [];
+  for (let i = 0; i < length; i++) {
+    cells.push({
+      x: !direction ? position.x + i : position.x,
+      y: !direction ? position.y : position.y + i,
+    });
+  }
+  return cells;
+}
+
+export function broadcastAttack(
+  game: IGame,
+  currentPlayer: string,
+  position: IPosition,
+  status: ResponseCellState
+) {
+  Object.values(game.players).forEach(pl => {
+    if (pl.ws && pl.ws.readyState === WebSocket.OPEN) {
+      const attackMessage = {
+        type: "attack",
+        data: JSON.stringify({
+          position,
+          currentPlayer,
+          status,
+        }),
+        id: 0,
+      };
+
+      pl.ws.send(JSON.stringify(attackMessage));
+    }
+  });
+}
+
+export function broadcastFinish(game: IGame, winPlayer: string) {
+  Object.values(game.players).forEach(pl => {
+    if (pl.ws && pl.ws.readyState === WebSocket.OPEN) {
+      const finishMessage = {
+        type: "finish",
+        data: JSON.stringify({
+          winPlayer,
+        }),
+        id: 0,
+      };
+
+      pl.ws.send(JSON.stringify(finishMessage));
+    }
+  });
+}
+
+export function broadcastStart(game: IGame) {
+  Object.entries(game.players).forEach(([name, pl]) => {
+    const playerShips: IShip[] = game.ships[name] || [];
+    const startGameMessage = {
+      type: "start_game",
+      data: JSON.stringify({
+        ships: playerShips,
+        currentPlayerIndex: name,
+      }),
+      id: 0,
+    };
+    if (pl.ws && pl.ws.readyState === WebSocket.OPEN) {
+      pl.ws.send(JSON.stringify(startGameMessage));
+    }
+  });
 }

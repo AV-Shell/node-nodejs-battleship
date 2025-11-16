@@ -2,12 +2,12 @@ import WebSocket from "ws";
 import { playerHandler } from "./handlers/playerHandler";
 import { createRoom, addUserToRoom } from "./handlers/roomHandler";
 import { getPlayerNameByWs } from "./handlers/common/utils";
+import { handleAddShips, handleAttack } from "./handlers/gameHandler";
 
 export const startControl = (ws: WebSocket): void => {
-  console.log("Ws connetded:", !ws.isPaused);
+  console.log("Ws connected:", !ws.isPaused);
   ws.on("message", async message => {
     try {
-      console.log({ message });
       const parsedCommand = JSON.parse(message.toString());
       const type: string = parsedCommand.type ?? "";
       const rawData: string = parsedCommand.data ?? "";
@@ -53,6 +53,16 @@ export const startControl = (ws: WebSocket): void => {
           break;
         }
 
+        case "add_ships": {
+          handleAddShips(ws, rawData);
+          break;
+        }
+
+        case "attack": {
+          handleAttack(ws, rawData);
+          break;
+        }
+
         default:
           break;
       }
@@ -63,6 +73,6 @@ export const startControl = (ws: WebSocket): void => {
 
   ws.on("close", () => {
     console.log("Client disconnected");
-    // TODO: удалить игрока из rooms/games, обнулить сокет завершить текущую игру победой второго игрока 
+    // TODO: удалить игрока из rooms/games, обнулить сокет завершить текущую игру победой второго игрока
   });
 };
